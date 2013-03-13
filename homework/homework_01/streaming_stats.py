@@ -28,12 +28,14 @@ def main():
         current_max = float("-inf")
         current_sum = 0
         observations_seen = 0
+        values = []
+        median = None
 
         # iterate over lines in each group
         for line in lines:
             # strip newline, split on tab, and return value from second column
             value = int(line.rstrip('\n').split('\t')[1])
-
+            values.append(value)
             current_sum += value
             observations_seen += 1
 
@@ -46,8 +48,17 @@ def main():
             # print(key, value)
 
         average = current_sum / observations_seen
+        values = sorted(values)
 
-        print(key, current_min, average, current_max)
+        if observations_seen % 2 == 0:
+            second = int(observations_seen / 2)
+            first = int(second - 1)
+            median = (values[first] + values[second]) / 2
+        else:
+            position = int(observations_seen / 2)
+            median = values[position]
+
+        print(key, current_min, median, average, current_max, sep='\t')
 
 
 if __name__ == '__main__':
