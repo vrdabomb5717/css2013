@@ -43,6 +43,7 @@ def find_satisfaction(ratings, movie_rankings, satisfaction_level=1.0):
 
     inventory_levels = np.zeros(num_movies)
 
+    # find number of users satisfied at each inventory level
     for user in ratings_by_user_clean.keys():
         users_ratings = ratings_by_user.get_group(user)
         df = pd.concat([users_ratings, movie_rankings], axis=1, join_axes=[users_ratings.movie_id])
@@ -54,7 +55,6 @@ def find_satisfaction(ratings, movie_rankings, satisfaction_level=1.0):
         satisfaction_inventory = int(df.reset_index().ranking.ix[satisfaction_percentile_row])
         inventory_levels[satisfaction_inventory] += 1
 
-    # us = pd.DataFrame.from_records(user_satisfaction, columns=["user_id", "inventory_level"])
     user_satisfaction = inventory_levels.cumsum() / num_users
     return user_satisfaction
 
