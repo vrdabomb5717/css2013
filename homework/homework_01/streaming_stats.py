@@ -58,7 +58,7 @@ def main():
             position = int(observations_seen / 2)
             median = values[position]
 
-        print(key, current_min, median, average, current_max, sep='\t')
+        print(key, current_min, '{:.2f}'.format(median), '{:.2f}'.format(average), current_max, sep='\t')
 
 
 if __name__ == '__main__':
