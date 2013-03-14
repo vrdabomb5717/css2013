@@ -16,6 +16,7 @@ __date__ = "Mar 6, 2013"
 
 
 def read_inputs(infilename):
+    """Read MovieLens ratings CSV into a Pandas dataframe."""
     with infilename as infile:
         ratings = pd.read_csv(infile, names=["user_id", "movie_id", "rating", "timestamp"],
                               dtype={"user_id": np.int32, "movie_id": np.int32,
@@ -23,38 +24,60 @@ def read_inputs(infilename):
         return ratings
 
 
-def find_rankings(ratings):
+def find_movie_rankings(ratings):
+    """Find the ranking for movies, measured by the number of ratings they have received."""
     rankings = ratings.copy()
-    del rankings["user_id"]
+    rankings = rankings.drop("user_id", axis=1)
     rankings_by_movie = rankings.groupby("movie_id")
-    movie_rankings = rankings_by_movie.agg({"rating": sum}).sort_index(by="rating", ascending=False)
-    movie_rankings["ranking"] = movie_rankings.rank(ascending=False, method='min')
+
+    # aggregate movies by the number of ratings
+    movie_rankings = rankings_by_movie.agg({"rating": len})
+    movie_rankings["ranking"] = movie_rankings.rank(ascending=False, method='min').astype(int)
+    movie_rankings = movie_rankings.drop("rating", axis=1)
+    movie_rankings.reset_index(inplace=True)
     return movie_rankings
 
 
-def find_satisfaction(ratings, movie_rankings, satisfaction_level=1.0):
-    ratings_by_user = ratings.groupby("user_id")
+def find_user_rankings(ratings, movie_rankings):
+    """Find the movie ranking for each movie that a user has seen."""
+    # Do an equijoin on movie_id, projecting out user_id and ranking
+    user_rankings = pd.merge(ratings, movie_rankings, on="movie_id", sort=False)
+    user_rankings.reset_index(drop=True, inplace=True)
+    user_rankings = user_rankings.drop("movie_id", axis=1)
+    user_rankings.sort_index(by=("user_id", "ranking"), inplace=True)
+    user_rankings.reset_index(drop=True, inplace=True)
+    return user_rankings
 
-    # select users who have seen at least 10 movies
-    ratings_by_user_clean = ratings_by_user.ix[ratings_by_user.movie_id.size() >= 10]
 
-    num_users = ratings.user_id.unique().size
-    num_movies = movie_rankings.shape[0]
+def clean_rankings(user_rankings):
+    """Remove users who have seen fewer than 10 movies."""
+    rankings_by_user = user_rankings.groupby("user_id")
+    num_movies_seen = rankings_by_user.agg({"ranking": len})
+    b = (num_movies_seen >= 10).values
+    b = np.ndarray.flatten(b)
+    users_to_keep = num_movies_seen[b]
+    user_rankings_clean = user_rankings[user_rankings['user_id'].isin(users_to_keep.index)]
+    return user_rankings_clean
 
+
+def find_satisfaction(user_rankings, num_users, num_movies, satisfaction_level=1.0):
+    rankings_by_user = user_rankings.groupby("user_id")
     inventory_levels = np.zeros(num_movies)
 
-    # find number of users satisfied at each inventory level
-    for user in ratings_by_user_clean.keys():
-        users_ratings = ratings_by_user.get_group(user)
-        df = pd.concat([users_ratings, movie_rankings], axis=1, join_axes=[users_ratings.movie_id])
-        df = df.sort_index(by="ranking")
-        satisfaction_percentile_row = int(np.floor(satisfaction_level * df.shape[0])) - 1
-        del df["user_id"]
-        del df["movie_id"]
-        del df["rating"]
-        satisfaction_inventory = int(df.reset_index().ranking.ix[satisfaction_percentile_row])
-        inventory_levels[satisfaction_inventory] += 1
+    def satisfaction(group):
+        """For each group, find the inventory level that satisfies a user p%."""
+        satisfaction_percentile_row = int(np.floor(satisfaction_level * group.shape[0])) - 1
+        level = group.values[satisfaction_percentile_row]
+        return level
 
+    # Find the inventory level that satisfies a user p%
+    satisfactions = rankings_by_user.agg({"ranking": satisfaction})
+    satisfactions = satisfactions.rename(columns={'ranking': 'levels'})
+
+    for x in satisfactions.levels.values:
+        inventory_levels[x] += 1
+
+    # Find the percent of users satisfied p% at a given inventory level
     user_satisfaction = inventory_levels.cumsum() / num_users
     return user_satisfaction
 
@@ -66,16 +89,27 @@ def main():
     parser.add_argument("infilename",
                         help="Read from this file.", type=open)
     args = parser.parse_args()
+
     ratings = read_inputs(args.infilename)
-    movie_rankings = find_rankings(ratings)
-    us_levels = find_satisfaction(ratings, movie_rankings)
+    ratings = ratings.drop("timestamp", axis=1)
+    movie_rankings = find_movie_rankings(ratings)
+    ratings = ratings.drop("rating", axis=1)
+    user_rankings = find_user_rankings(ratings, movie_rankings)
+    num_users = user_rankings.user_id.unique().size
+    num_movies = movie_rankings.shape[0]
+    user_rankings = clean_rankings(user_rankings)
+
+    us_levels_100 = find_satisfaction(user_rankings, num_users, num_movies)
+    us_levels_90 = find_satisfaction(user_rankings, num_users, num_movies, satisfaction_level=0.9)
 
     rc('text', usetex=True)
     plt.title('Percent of Users Satisfied vs Inventory Size in the MovieLens Dataset')
     plt.xlabel('Inventory Size')
     plt.ylabel('Percent of Users Satisfied')
-    plt.plot(us_levels)
-    d = datetime.datetime.utcnow().isoformat()
+    plt.plot(us_levels_100, 'b', label=r'$100\% \ satisfaction$')
+    plt.plot(us_levels_90, 'r--', label=r'$90\% \ satisfaction$')
+    plt.legend()
+    d = datetime.datetime.now().isoformat()
     plt.savefig('user_satisfaction_%s.png' % d)
 
 
