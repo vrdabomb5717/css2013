@@ -12,7 +12,7 @@
 #  2. Set PIG_BIN below to point to your local pig binary directory
 #  3. Run the script with ./run_wordcount.sh
 JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home
-PIG_BIN=/usr/local/bin/
+PIG_BIN=/usr/local/bin
 
 # No need to modify below
 $PIG_BIN/pig -x local \
