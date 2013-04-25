@@ -2,7 +2,7 @@
 -- Run using the run_wordcount.sh
 
 -- Load tab-separated articles
-articles = load '$INPUT' as (id, url, text);
+articles = load '$INPUT' USING PigStorage('\t') as (id, url, text);
 
 -- Fill in code here to count words across all article text
 articles = foreach articles generate flatten(TOKENIZE(text)) as word;
