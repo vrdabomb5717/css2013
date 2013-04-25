@@ -35,3 +35,4 @@ nosetests.xml
 .project
 .pydevproject
 /data/
+/homework/homework_02/problem_03/answer.tsv

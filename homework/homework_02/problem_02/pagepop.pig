@@ -16,6 +16,7 @@ page_counts = foreach page_counts generate CONCAT('http://en.wikipedia.org/wiki/
 -- Join page counts with page ids to generate output
 edges = join edges by source_url, page_counts by page;
 edges = foreach edges generate source_id, source_url, page_count;
+edges = distinct edges;
 edges = order edges by page_count desc;
 
 -- Write tab-separate output
